@@ -54,6 +54,8 @@ float TABLE_TOP_WIDTH = 8, TABLE_TOP_LENGTH = 10, TABLE_TOP_THICKNESS = 1;	// St
 float TABLE_LEG_HEIGHT = 7, TABLE_LEG_WIDTH = 1;
 float tableX = 10, tableY, tableZ;											//End of Table Variables
 
+float gh_x, gh_z;
+
 string pass = "";
 
 bool isShowBox = 0;
@@ -66,6 +68,7 @@ void mydraw();
 void reshape(int, int);
 void fanTimer(int);
 void lightTimer(int);
+void ghostTimer(int);
 void keyboard(unsigned char, int, int);
 void specialKeyboard(int, int, int);
 //void load(int imgnum);
@@ -91,12 +94,12 @@ void drawTable2();
 
 void drawCard();
 void drawCoffin();
-void drawModel(const vector<float>& vertices,
-	const vector<float>& texCoords,
-	float tx, float ty, float tz,
-	float sx, float sy, float sz,
-	float angle, float r,
-	int textureId);
+void drawModel(const vector<float>&,
+	const vector<float>&,
+	float, float, float,
+	float, float, float,
+	float, float,
+	int, float, int);
 void loadModel(const char* filename, vector<float>& vertices, vector<float>& texCoords);
 
 void drawTriangleHand(float, float);
@@ -135,6 +138,7 @@ int main(int argc, char** argv) {
 	glutReshapeFunc(reshape);
 	glutTimerFunc(0, fanTimer, 0); // fan
 	glutTimerFunc(0, lightTimer, 0); // light
+	glutTimerFunc(0, ghostTimer, 0); // ghost
 	glutKeyboardFunc(keyboard);
 	glutSpecialFunc(specialKeyboard);
 	glutMouseFunc(mouseClick);
@@ -219,10 +223,18 @@ void reshape(int w, int h) {
 	glMatrixMode(GL_MODELVIEW);
 }
 
+void ghostTimer(int v) {
+	gh_x = -20;
+	gh_z = rng() % 38 - 15;
+	glutPostRedisplay();
+	glutTimerFunc(12000, ghostTimer, 0);
+}
+
 void finishTimer(int v) {
 	glutTimerFunc(5000, lightTimer, 0);
 	exit(0);
 }
+
 // Light Toggle Timer
 void lightTimer(int v) {
 	toggleLight(v);
@@ -241,6 +253,7 @@ void fanTimer(int v) {
 
 	glutPostRedisplay();
 	glutTimerFunc(100, fanTimer, 0);
+	gh_x += 0.8;
 }
 
 void keyboard(unsigned char key, int x, int y) {
@@ -277,33 +290,7 @@ void specialKeyboard(int key, int x, int y) {
 				GetSystemMetrics(SM_CYSCREEN) / 4);
 		}
 	}
-	//if (key == GLUT_KEY_RIGHT) {
-	//	centerX += .9;
-	//	centerZ += .001;
-	//}
-	//if (key == GLUT_KEY_LEFT) {
-	//	centerX -= .9;
-	//	centerZ -= .001;
-	//}
-	//if (key == GLUT_KEY_DOWN) {
-	//	eyez += 1;
-	//	centerZ +=1;
-	//	
-	//}
-	//if (key == GLUT_KEY_UP) {
-	//	eyez -= 1;
-	//	centerZ -=1;
-	//}
-	//if (key == GLUT_KEY_F3) {
-	//	if (centerY > -2) { // Don't go lower than floor
-	//		centerY -= 0.5;
-	//	}
-	//}
-	//if (key == GLUT_KEY_F4) {
-	//	if (centerY < 20) { // Don't go higher than roof
-	//		centerY += 0.5;
-	//	}
-	//}
+
 	float speed = 1.5;
 	if (key == GLUT_KEY_RIGHT) {
 		if (centerX + cos(toRad(yaw) + PI / 2) * speed >= 6 && centerZ + sin(toRad(yaw) + PI / 2) * speed <= 7)
@@ -902,7 +889,7 @@ void drawTable() {
 	// Disable texture after drawing legs
 	glDisable(GL_TEXTURE_2D);
 
-	drawModel(skullVertices, skullTexCoords, 2, 1.7, -8, 0.09f, 0.09f, 0.09f, 0, 0, 9);       // Skull
+	drawModel(skullVertices, skullTexCoords, 2, 1.7, -8, 0.09f, 0.09f, 0.09f, 0, 0, 9, 1, 0);       // Skull
 	glPopMatrix();
 }
 
@@ -1074,12 +1061,12 @@ void drawTable2() {
 		10.0f, TABLE_LEG_HEIGHT - 1.6f + TABLE_TOP_THICKNESS / 1.0f, -0.9f, // tx, ty, tz
 		0.09f, 0.09f, 0.09f,                                            // scale to fit
 		45.0f, 1.0f,                                        // rotate if needed
-		9);
+		9, 1, 0);
 	drawModel(skullVertices, skullTexCoords,
 		12.0f, TABLE_LEG_HEIGHT - 1.6f + TABLE_TOP_THICKNESS / 1.0f, -0.9f, // tx, ty, tz
 		0.07f, 0.07f, 0.07f,                                            // scale to fit
 		-60.0f, 1.0f,                                        // rotate if needed
-		9);
+		9, 1, 0);
 }
 
 void drawCard() {
@@ -1131,9 +1118,9 @@ void drawCard() {
 }
 
 void drawCoffin() {
-	glEnable(GL_TEXTURE_2D);
-
 	glPushMatrix();
+
+	glEnable(GL_TEXTURE_2D);
 
 	float th = 0.06, sg = 0.02, sg2 = 0.01;
 	float vx[] = { 0, 2.05, 2.05, 0, -2.05, -2.05 };
@@ -1201,13 +1188,19 @@ void drawCoffin() {
 	}
 
 	glDisable(GL_TEXTURE_2D);
+
 	drawModel(skeletonVertices, skeletonTexCoords,
 		1.5f, 0.4f, 0.0f,       // tx, ty, tz (centered)
 		1.4f, 1.4f, 1.4f,       // scale down to fit
 		90.0f, 1.0f, // rotate model to lie flat
-		9);
-
+		9, 1, 0);
 	glPopMatrix();
+
+	drawModel(skeletonVertices, skeletonTexCoords,
+		gh_x, 4, gh_z,       // tx, ty, tz (centered)
+		6, 6, 6,       // scale down to fit
+		0, 0, // rotate model to lie flat
+		9, 0.1, 1);
 }
 
 
@@ -1260,18 +1253,23 @@ void drawModel(const vector<float>& vertices,
 	float tx, float ty, float tz,
 	float sx, float sy, float sz,
 	float angle, float r,
-	int textureId) {
+	int textureId, 
+	float transperancy,
+	int fl) {
 	glPushMatrix();
 
 	glEnable(GL_TEXTURE_2D);
 	use_texture(textureId);
-	glColor3f(1.0f, 1.0f, 1.0f);
 
 	glTranslatef(tx, ty, tz);
 	glRotatef(angle, 0, 0, r);
 	glRotatef(angle, 0, r, 0);
+	glRotatef(90, 0, fl, 0);
 	glScalef(sx, sy, sz);
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glColor4f(1.0f, 1.0f, 1.0f, transperancy);
 	glBegin(GL_TRIANGLES);
 	for (size_t i = 0, j = 0; i < vertices.size(); i += 3, j += 2) {
 		glTexCoord2f(texCoords[j], texCoords[j + 1]);
@@ -1279,6 +1277,7 @@ void drawModel(const vector<float>& vertices,
 	}
 	glEnd();
 
+	glDisable(GL_BLEND);
 	glDisable(GL_TEXTURE_2D);
 	glPopMatrix();
 }
@@ -1535,7 +1534,7 @@ void drawPainring() {
 	glPopMatrix();
 }
 
-bool isClickOnBox(int mouseX, int mouseY) {
+bool isClick(int mouseX, int mouseY) {
 	GLdouble modelview[16], projection[16];
 	GLint viewport[4];
 	glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
@@ -1568,14 +1567,14 @@ bool isClickOnBox(int mouseX, int mouseY) {
 void mouseClick(int button, int state, int x, int y) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		if (!painting_moved){
-			if (isClickOnBox(x, y)) {
+			if (isClick(x, y)) {
 				painting_rot_z = 1;
 				painting_moved = 1;
 				cout << "Pic was clicked!\n";
 			}
 		}
 		else {
-			if (isClickOnBox(x, y)) {
+			if (isClick(x, y)) {
 				cout << "Box was clicked!\n";
 				isShowBox = 1;
 			}
@@ -1585,8 +1584,8 @@ void mouseClick(int button, int state, int x, int y) {
 
 void draw2DMessageBox(const char* title) {
 	// Save current matrix modes
-	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
+	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	gluOrtho2D(0, 1920, 0, 1080);
 
