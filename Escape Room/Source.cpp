@@ -31,14 +31,12 @@ float eyey = 10, eyez = 40, eyex = 0;
 float centerX, centerY, centerZ = 20;
 float rat = 0;
 
-
 const double PI = acos(-1);				// Start of Camera Variables
 bool firstMouse = true;
 float yaw = -80, pitch = -20;
 float lastX = 400, lastY = 300;
 float sensitivity = 0.05f;
 bool skipNextMouseMovement = true;	//End of Camera Variables
-
 
 float fanRotationAngle = 0.0f;
 float matamb[] = { 1.0f,1.0f,1.0f,1.0f },
@@ -63,9 +61,19 @@ bool isShowBox = 0;
 float axe_angle[3] = { 0,-15,30 };
 int axe_side[3] = { 1,-1,1 };
 
+float painting_rot_z = 0;
+bool painting_moved = 0;
+float back_wall_y = 0;
+
+
+
+
+
+
+
+
 void init_textures();
 void use_texture(int);
-
 void background();
 void mydraw();
 void reshape(int, int);
@@ -74,11 +82,8 @@ void lightTimer(int);
 void ghostTimer(int);
 void keyboard(unsigned char, int, int);
 void specialKeyboard(int, int, int);
-//void load(int imgnum);
-//void check(unsigned char* data);
 float toRad(float);
 void mouseMovement(int, int);
-
 void rightWall();
 void leftWall();
 void frontWall();
@@ -90,11 +95,9 @@ void drawChair();
 void chair();
 void drawTable();
 void drawFan();
-
 void drawCube(float, float, float);
 void drawTableLeg(float, float);
 void drawTable2();
-
 void drawCard();
 void drawCoffin();
 void drawModel(const vector<float>&,
@@ -104,23 +107,19 @@ void drawModel(const vector<float>&,
 	float, float,
 	int, float, int);
 void loadModel(const char* filename, vector<float>& vertices, vector<float>& texCoords);
-
 void drawTriangleHand(float, float);
 void drawClockFace();
 void drawClock();
 void drawI(float, float, float);
 void drawV(float, float, float);
 void drawX(float, float, float);
-
-void drawPainring();
+void drawPainting();
 void drawSafeBox();
 void drawLamp();
-
 void mouseClick(int, int, int, int);
+bool isClick(int mouseX, int mouseY);
 void draw2DMessageBox(const char*);
-
 void drawFrame(int, float, float, float);
-
 void drawAxe(float trans_x = 0, float trans_y = 0, float trans_z = 0, float scale_x = 4, float scale_y = 4, float scale_z = 4, int axe_number = 0);
 void axeTimer(int);
 void finalCorridor_pt1();
@@ -131,6 +130,25 @@ void drawArm();
 void drawBlades();
 void drawQuarterBlade(float direction);
 
+
+
+
+
+
+
+
+//////////////////////////////////////////////START HERE//////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+//  main
 int main(int argc, char** argv) {
 
 	glutInit(&argc, argv);
@@ -160,7 +178,15 @@ int main(int argc, char** argv) {
 	glutMainLoop();
     return 0;
 }
-
+void reshape(int w, int h) {
+	if (h == 0) h = 1;
+	rat = w / (float)h;
+	glViewport(0, 0, w, h);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluPerspective(45, rat, 1, 100);
+	glMatrixMode(GL_MODELVIEW);
+}
 void background() {
 	glClearColor(0, 0, 0, 1);
 	glEnable(GL_DEPTH_TEST);
@@ -177,19 +203,6 @@ void background() {
 	glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
 	glMaterialfv(GL_FRONT, GL_SHININESS, matshin);
 }
-
-void toggleLight(int value) {
-	lightOn = !lightOn;
-
-	if (lightOn) {
-		glEnable(GL_LIGHT0);  // ON
-	}
-	else {
-		glDisable(GL_LIGHT0); // OFF
-	}
-	//glutPostRedisplay();
-}
-
 void mydraw() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glLoadIdentity();
@@ -213,7 +226,7 @@ void mydraw() {
 	drawCoffin();
 	drawClock();
 	drawSafeBox();
-	drawPainring();
+	drawPainting();
 	drawLamp();
 
 	drawFrame(13, 19.5f, 12.0f, 12.0f);
@@ -237,30 +250,32 @@ void mydraw() {
 
 	glutSwapBuffers();
 }
+void toggleLight(int value) {
+	lightOn = !lightOn;
 
-void reshape(int w, int h) {
-	if (h == 0) h = 1;
-	rat = w / (float)h;
-	glViewport(0, 0, w, h);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(45, rat, 1, 100);
-	glMatrixMode(GL_MODELVIEW);
+	if (lightOn) {
+		glEnable(GL_LIGHT0);  // ON
+	}
+	else {
+		glDisable(GL_LIGHT0); // OFF
+	}
+	//glutPostRedisplay();
 }
 
+
+// timers
 void ghostTimer(int v) {
 	gh_x = -20;
 	gh_z = rng() % 38 - 15;
 	glutPostRedisplay();
 	glutTimerFunc(12000, ghostTimer, 0);
 }
-
 void finishTimer(int v) {
-	glutTimerFunc(5000, lightTimer, 0);
-	exit(0);
-}
+	back_wall_y += 1;
 
-// Light Toggle Timer
+	glutPostRedisplay();
+	glutTimerFunc(100, lightTimer, 0);
+}
 void lightTimer(int v) {
 	toggleLight(v);
 	glutPostRedisplay();
@@ -269,8 +284,6 @@ void lightTimer(int v) {
 	else 
 		glutTimerFunc(rng() % 1000, lightTimer, 0);
 }
-
-// fan movement timer
 void fanTimer(int v) {
 	fanRotationAngle += 20.0f;
 	if (fanRotationAngle > 360.0f)
@@ -281,6 +294,8 @@ void fanTimer(int v) {
 	gh_x += 0.8;
 }
 
+
+// mouse and cats
 void keyboard(unsigned char key, int x, int y) {
 	if (key == 27) {
 		if (isShowBox)
@@ -301,7 +316,6 @@ void keyboard(unsigned char key, int x, int y) {
 			pass.pop_back();
 	}
 }
-
 void specialKeyboard(int key, int x, int y) {
 	if (key == GLUT_KEY_F1) {
 		fullScreenMode = !fullScreenMode;
@@ -396,147 +410,6 @@ void specialKeyboard(int key, int x, int y) {
 	}
 	glutPostRedisplay();
 }
-
-void init_textures() {
-	const char* filenames[20] = {
-		"", // dummy for index 0
-		"floor.jpg",		//1
-		"roof.jpg",			//2
-		"chair-wood.jpg",	//3
-		"table_texture.jpg",//4
-		"fan_txt.PNG",		//5
-		"wood.jpg",			//6
-		"card.jpg",			//7
-		"darkwood.jpg",		//8
-		"sk.jpg",			//9
-		"safeBox.jpg",		//10
-		"clock.jpg",		//11
-		"pic.jpg",          //12
-		"frame1.jpg",       //13
-		"frame2.jpg",       //14
-		"frame3.jpg",       //15
-		"metal.jpg"        
-	};
-
-	for (int i = 1; i < 17; ++i) {
-		int width, height, nrChannels;
-		unsigned char* data = stbi_load(filenames[i], &width, &height, &nrChannels, 0);
-		if (data) {
-			glGenTextures(1, &textures[i]);
-			glBindTexture(GL_TEXTURE_2D, textures[i]);
-
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		}
-		else {
-			cout << "Failed to load texture: " << filenames[i] << endl;
-		}
-	}
-}
-
-void use_texture(int imgnum) {
-	glBindTexture(GL_TEXTURE_2D, textures[imgnum]);
-}
-//void load(int imgnum) {
-//	if (imgnum == 1) {
-//
-//		data = stbi_load("floor.jpg", &width, &height, &nrChannels, 0);
-//		check(data);
-//	}
-//	else if (imgnum == 2) {
-//
-//		data = stbi_load("roof.jpg", &width, &height, &nrChannels, 0);
-//		check(data);
-//	}
-//	else if (imgnum == 3) {
-//		data = stbi_load("chair-wood.jpg", &width, &height, &nrChannels, 0);
-//		check(data);
-//	}
-//	else if (imgnum == 4) {
-//
-//		data = stbi_load("table_texture.jpg", &width, &height, &nrChannels, 0);
-//		check(data);
-//	}
-//	else if (imgnum == 5) {
-//
-//		data = stbi_load("fan_txt.PNG", &width, &height, &nrChannels, 0);
-//		check(data);
-//	}
-//	else if (imgnum == 6) {
-//
-//		data = stbi_load("wood.jpg", &width, &height, &nrChannels, 0);
-//		check(data);
-//	}
-//}
-//
-//void check(unsigned char* data) {
-//	if (data)
-//	{
-//		glGenTextures(1, &texture);
-//		glBindTexture(GL_TEXTURE_2D, texture);
-//		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-//
-//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	}
-//	else
-//	{
-//		cout << "Failed to load texture" << endl;
-//	}
-//	stbi_image_free(data);
-//}
-
-float toRad(float deg) {
-	return (deg * PI) / 180;
-}
-
-//void mouseMovement(int horizontalPos, int verticalPos) {
-//	if (firstMouse)
-//	{
-//		glutWarpPointer(glutGet(GLUT_WINDOW_WIDTH) / 2, glutGet(GLUT_WINDOW_HEIGHT) / 2);
-//		lastX = horizontalPos;
-//		lastY = verticalPos;
-//		firstMouse = false;
-//	}
-//	if (skipNextMouseMovement) {
-//		skipNextMouseMovement = false;
-//		//lastX = glutGet(GLUT_WINDOW_WIDTH) / 2;
-//		//lastY = glutGet(GLUT_WINDOW_HEIGHT) / 2;
-//		return;
-//	}
-//	float xoffset = horizontalPos - lastX;
-//	float yoffset = lastY - verticalPos;
-//	lastX = horizontalPos;
-//	lastY = verticalPos;
-//
-//	xoffset *= sensitivity;
-//	yoffset *= sensitivity;
-//
-//	yaw += xoffset;
-//	if (yaw > 360.0f) yaw -= 360.0f;
-//	if (yaw < 0.0f) yaw += 360.0f;
-//
-//	pitch += yoffset;
-//	if (pitch > 89)
-//		pitch = 89;
-//	if (pitch < -89)
-//		pitch = -89;
-//
-//	centerX = eyex + cos(toRad(yaw)) * cos(toRad(pitch));
-//	centerY = eyey + sin(toRad(pitch));
-//	centerZ = eyez + sin(toRad(yaw)) * cos(toRad(pitch));
-//
-//	glutWarpPointer(glutGet(GLUT_WINDOW_WIDTH) / 2, glutGet(GLUT_WINDOW_HEIGHT) / 2);
-//	skipNextMouseMovement = true;
-//	glutPostRedisplay();
-//}
-
 void mouseMovement(int horizontalPos, int verticalPos) {
 	int centerScreenX = glutGet(GLUT_WINDOW_WIDTH) / 2;
 	int centerScreenY = glutGet(GLUT_WINDOW_HEIGHT) / 2;
@@ -566,7 +439,156 @@ void mouseMovement(int horizontalPos, int verticalPos) {
 	glutWarpPointer(centerScreenX, centerScreenY);
 	glutPostRedisplay();
 }
+void mouseClick(int button, int state, int x, int y) {
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+		if (!painting_moved){
+			if (isClick(x, y)) {
+				painting_rot_z = 1;
+				painting_moved = 1;
+				cout << "Pic was clicked!\n";
+			}
+		}
+		else {
+			if (isClick(x, y)) {
+				cout << "Box was clicked!\n";
+				isShowBox = 1;
+			}
+		}
+	}
+}
 
+
+// textures
+void init_textures() {
+	const char* filenames[20] = {
+		"", // dummy for index 0
+		"floor.jpg",		//1
+		"roof.jpg",			//2
+		"chair-wood.jpg",	//3
+		"table_texture.jpg",//4
+		"fan_txt.PNG",		//5
+		"wood.jpg",			//6
+		"card.jpg",			//7
+		"darkwood.jpg",		//8
+		"sk.jpg",			//9
+		"safeBox.jpg",		//10
+		"clock.jpg",		//11
+		"pic.jpg",          //12
+		"frame1.jpg",       //13
+		"frame2.jpg",       //14
+		"frame3.jpg",       //15
+		"metal.jpg",        //16
+		"try_pass.jpg"
+	};
+
+	for (int i = 1; i < 18; ++i) {
+		int width, height, nrChannels;
+		unsigned char* data = stbi_load(filenames[i], &width, &height, &nrChannels, 0);
+		if (data) {
+			glGenTextures(1, &textures[i]);
+			glBindTexture(GL_TEXTURE_2D, textures[i]);
+
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
+		else {
+			cout << "Failed to load texture: " << filenames[i] << endl;
+		}
+	}
+}
+void use_texture(int imgnum) {
+	glBindTexture(GL_TEXTURE_2D, textures[imgnum]);
+}
+
+
+// Load the OBJ model
+// Load OBJ model and extract vertices and texture coordinates
+void loadModel(const char* filename, vector<float>& vertices, vector<float>& texCoords) {
+	tinyobj::attrib_t attrib;
+	vector<tinyobj::shape_t> shapes;
+	vector<tinyobj::material_t> materials;
+	string warn, err;
+
+	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename);
+	if (!ret) {
+		cerr << "Error loading model: " << err << endl;
+		return;
+	}
+
+	if (!warn.empty()) {
+		cerr << "Warning: " << warn << endl;
+	}
+
+	vertices.clear();
+	texCoords.clear();
+
+	for (const auto& shape : shapes) {
+		for (const auto& index : shape.mesh.indices) {
+			// Vertex
+			vertices.push_back(attrib.vertices[3 * index.vertex_index + 0]);
+			vertices.push_back(attrib.vertices[3 * index.vertex_index + 1]);
+			vertices.push_back(attrib.vertices[3 * index.vertex_index + 2]);
+
+			// Texture
+			if (index.texcoord_index >= 0 && !attrib.texcoords.empty()) {
+				texCoords.push_back(attrib.texcoords[2 * index.texcoord_index + 0]);
+				texCoords.push_back(attrib.texcoords[2 * index.texcoord_index + 1]);
+			}
+			else {
+				texCoords.push_back(0.0f);
+				texCoords.push_back(0.0f);
+			}
+		}
+	}
+
+	cout << "Loaded " << vertices.size() / 3 << " vertices from " << filename << endl;
+}
+// Draw the 3D textured model with passed model data, positioned to the right of the table
+void drawModel(const vector<float>& vertices,
+	const vector<float>& texCoords,
+	float tx, float ty, float tz,
+	float sx, float sy, float sz,
+	float angle, float r,
+	int textureId,
+	float transperancy,
+	int fl) {
+	glPushMatrix();
+
+	glEnable(GL_TEXTURE_2D);
+	use_texture(textureId);
+
+	glTranslatef(tx, ty, tz);
+	glRotatef(angle, 0, 0, r);
+	glRotatef(angle, 0, r, 0);
+	glRotatef(90, 0, fl, 0);
+	glScalef(sx, sy, sz);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glColor4f(1.0f, 1.0f, 1.0f, transperancy);
+	glBegin(GL_TRIANGLES);
+	for (size_t i = 0, j = 0; i < vertices.size(); i += 3, j += 2) {
+		glTexCoord2f(texCoords[j], texCoords[j + 1]);
+		glVertex3f(vertices[i], vertices[i + 1], vertices[i + 2]);
+	}
+	glEnd();
+
+	glDisable(GL_BLEND);
+	glDisable(GL_TEXTURE_2D);
+	glPopMatrix();
+}
+
+
+float toRad(float deg) {
+	return (deg * PI) / 180;
+}
+
+
+// room
 void floor() {
 	use_texture(1);
 	glEnable(GL_TEXTURE_2D);
@@ -581,7 +603,6 @@ void floor() {
 	glVertex3f(20, -2, -20);
 	glEnd();
 }
-
 void roof() {
 	use_texture(2);
 	glBegin(GL_QUADS);
@@ -595,7 +616,6 @@ void roof() {
 	glVertex3f(-20, 25, -20);
 	glEnd();
 }
-
 void rightWall() {
 	use_texture(2);
 	glBegin(GL_QUADS);
@@ -609,7 +629,6 @@ void rightWall() {
 	glVertex3f(20, 25, -20);
 	glEnd();
 }
-
 void leftWall() {
 	use_texture(2);
 	glBegin(GL_QUADS);
@@ -623,7 +642,6 @@ void leftWall() {
 	glVertex3f(-20, 25, -20);
 	glEnd();
 }
-
 void frontWall() {
 	use_texture(2);
 	glBegin(GL_QUADS);
@@ -637,33 +655,33 @@ void frontWall() {
 	glVertex3f(-20, 25, -20);
 	glEnd();
 }
-
 void backWall() {
 	use_texture(2);
 	glBegin(GL_QUADS);
 	glTexCoord2d(0.0f, 0.0f);
-	glVertex3f(-20, -2, 50);
+	glVertex3f(-20, -2 + back_wall_y, 50);
 	glTexCoord2d(1.0f, 0.0f);
-	glVertex3f(20, -2, 50);
+	glVertex3f(20, -2 + back_wall_y, 50);
 	glTexCoord2d(1.0f, 1.0f);
-	glVertex3f(20, 25, 50);
+	glVertex3f(20, 25 + back_wall_y, 50);
 	glTexCoord2d(0.0f, 1.0f);
-	glVertex3f(-20, 25, 50);
+	glVertex3f(-20, 25 + back_wall_y, 50);
 
 	glEnd();
 }
-
 void Room()
 {
 	floor();
 	roof();
 	frontWall();
-	//backWall();
+	backWall();
 	rightWall();
 	leftWall();
 	glDisable(GL_TEXTURE_2D);
 }
 
+
+// chairs and tables
 void drawChair()
 {
 	glEnable(GL_TEXTURE_2D);
@@ -785,7 +803,6 @@ void drawChair()
 
 	glDisable(GL_TEXTURE_2D);
 }
-
 void chair()
 {
 	glPushMatrix();
@@ -794,7 +811,6 @@ void chair()
 	drawChair();
 	glPopMatrix();
 }
-
 void drawTable() {
 	glEnable(GL_TEXTURE_2D);
 	use_texture(4);  // Load table texture (Capture.PNG)
@@ -919,6 +935,303 @@ void drawTable() {
 	glPopMatrix();
 }
 
+
+// table 2 and lamp
+void drawCube(float width, float height, float depth) {
+	float w = width / 2, h = height / 2, d = depth / 2;
+	glBegin(GL_QUADS);
+
+	// Front
+	glTexCoord2f(0, 0); glVertex3f(-w, -h, d);
+	glTexCoord2f(1, 0); glVertex3f(w, -h, d);
+	glTexCoord2f(1, 1); glVertex3f(w, h, d);
+	glTexCoord2f(0, 1); glVertex3f(-w, h, d);
+
+	// Back
+	glTexCoord2f(0, 0); glVertex3f(w, -h, -d);
+	glTexCoord2f(1, 0); glVertex3f(-w, -h, -d);
+	glTexCoord2f(1, 1); glVertex3f(-w, h, -d);
+	glTexCoord2f(0, 1); glVertex3f(w, h, -d);
+
+	// Left
+	glTexCoord2f(0, 0); glVertex3f(-w, -h, -d);
+	glTexCoord2f(1, 0); glVertex3f(-w, -h, d);
+	glTexCoord2f(1, 1); glVertex3f(-w, h, d);
+	glTexCoord2f(0, 1); glVertex3f(-w, h, -d);
+
+	// Right
+	glTexCoord2f(0, 0); glVertex3f(w, -h, d);
+	glTexCoord2f(1, 0); glVertex3f(w, -h, -d);
+	glTexCoord2f(1, 1); glVertex3f(w, h, -d);
+	glTexCoord2f(0, 1); glVertex3f(w, h, d);
+
+	// Top
+	glTexCoord2f(0, 0); glVertex3f(-w, h, d);
+	glTexCoord2f(1, 0); glVertex3f(w, h, d);
+	glTexCoord2f(1, 1); glVertex3f(w, h, -d);
+	glTexCoord2f(0, 1); glVertex3f(-w, h, -d);
+
+	// Bottom
+	glTexCoord2f(0, 0); glVertex3f(-w, -h, -d);
+	glTexCoord2f(1, 0); glVertex3f(w, -h, -d);
+	glTexCoord2f(1, 1); glVertex3f(w, -h, d);
+	glTexCoord2f(0, 1); glVertex3f(-w, -h, d);
+
+	glEnd();
+}
+void drawTableLeg(float x, float z) {
+	glPushMatrix();
+	glTranslatef(x, TABLE_TOP_THICKNESS, z);
+	drawCube(TABLE_LEG_WIDTH, TABLE_LEG_HEIGHT, TABLE_LEG_WIDTH);
+	glPopMatrix();
+}
+void drawTable2() {
+	glPushMatrix();
+	glTranslatef(tableX, tableY, tableZ);
+
+	// Draw table top
+	glEnable(GL_TEXTURE_2D);
+	use_texture(6);
+	glPushMatrix();
+	glTranslatef(0.0f, TABLE_LEG_HEIGHT - 2, 0.0f);
+	drawCube(TABLE_TOP_WIDTH, TABLE_TOP_THICKNESS, TABLE_TOP_LENGTH);
+	glPopMatrix();
+
+	// Draw four legs
+	float legOffsetX = TABLE_TOP_WIDTH / 2 - TABLE_LEG_WIDTH / 2;
+	float legOffsetZ = TABLE_TOP_LENGTH / 2 - TABLE_LEG_WIDTH / 2;
+
+	drawTableLeg(-legOffsetX, -legOffsetZ);  // Back-left
+	drawTableLeg(-legOffsetX, legOffsetZ);   // Front-left
+	drawTableLeg(legOffsetX, -legOffsetZ);  // Back-right
+	drawTableLeg(legOffsetX, legOffsetZ);   // Front-right
+	glDisable(GL_TEXTURE_2D);
+	glPopMatrix();
+
+	drawModel(skullVertices, skullTexCoords,
+		10.0f, TABLE_LEG_HEIGHT - 1.6f + TABLE_TOP_THICKNESS / 1.0f, -0.9f, // tx, ty, tz
+		0.09f, 0.09f, 0.09f,                                            // scale to fit
+		45.0f, 1.0f,                                        // rotate if needed
+		9, 1, 0);
+	drawModel(skullVertices, skullTexCoords,
+		12.0f, TABLE_LEG_HEIGHT - 1.6f + TABLE_TOP_THICKNESS / 1.0f, -0.9f, // tx, ty, tz
+		0.07f, 0.07f, 0.07f,                                            // scale to fit
+		-60.0f, 1.0f,                                        // rotate if needed
+		9, 1, 0);
+}
+void drawCard() {
+	float w = 0.64f, h = 0.9f, t = 0.05f;
+
+	glPushMatrix();
+	glEnable(GL_TEXTURE_2D);
+	use_texture(7);
+	glTranslatef(9.0f, 5.48f, 0.0f);
+	glRotatef(90, 1, 0, 0);
+	glRotatef(45, 0, 0, 1);
+	// Front face (textured)
+	glBegin(GL_QUADS);
+	glTexCoord2f(0.0, 0.0); glVertex3f(-w, -h, t);
+	glTexCoord2f(1.0, 0.0); glVertex3f(w, -h, t);
+	glTexCoord2f(1.0, 1.0); glVertex3f(w, h, t);
+	glTexCoord2f(0.0, 1.0); glVertex3f(-w, h, t);
+	glEnd();
+
+	// Back face (textured or plain)
+	glBegin(GL_QUADS);
+	glTexCoord2f(0.0, 0.0); glVertex3f(-w, -h, -t);
+	glTexCoord2f(1.0, 0.0); glVertex3f(w, -h, -t);
+	glTexCoord2f(1.0, 1.0); glVertex3f(w, h, -t);
+	glTexCoord2f(0.0, 1.0); glVertex3f(-w, h, -t);
+	glEnd();
+
+	glDisable(GL_TEXTURE_2D);
+	glColor3f(0.0f, 0.0f, 0.0f);
+	glDisable(GL_LIGHTING);
+	// Sides
+	glBegin(GL_QUADS);
+	// Top
+
+	glVertex3f(-w, h, t); glVertex3f(w, h, t);
+	glVertex3f(w, h, -t); glVertex3f(-w, h, -t);
+	// Bottom
+	glVertex3f(-w, -h, t); glVertex3f(-w, -h, -t);
+	glVertex3f(w, -h, -t); glVertex3f(w, -h, t);
+	// Right
+	glVertex3f(w, -h, t); glVertex3f(w, -h, -t);
+	glVertex3f(w, h, -t); glVertex3f(w, h, t);
+	// Left
+	glVertex3f(-w, -h, t); glVertex3f(-w, h, t);
+	glVertex3f(-w, h, -t); glVertex3f(-w, -h, -t);
+	glEnd();
+
+	glPopMatrix();
+}
+void drawLamp() {
+	const float shiftX = -2.0f;  // Shift lamp 2 units to the left
+
+	glPushMatrix();
+	glTranslatef(-6, 0, 15);
+	glRotatef(90, 0, 1, 0);
+
+	// === Lamp Base ===
+	glPushMatrix();
+	glTranslatef(shiftX, 1.0f, -8.0f);
+	glScalef(1.0f, 0.2f, 1.0f);
+	glColor3f(0.5f, 0.3f, 0.2f);
+	glDisable(GL_TEXTURE_2D);
+	glutSolidCube(1.0f);
+	glPopMatrix();
+
+	// === Lamp Stand ===
+	glPushMatrix();
+	glTranslatef(shiftX, 1.9f, -8.0f);
+	glScalef(0.5f, 1.8f, 0.1f);
+	glColor3f(1.0f, 0.0f, 0.0f);
+	glDisable(GL_TEXTURE_2D);
+	glutSolidCube(1.0f);
+	glPopMatrix();
+
+	// === Lamp Shade (Textured) ===
+	glPushMatrix();
+	glTranslatef(shiftX, 3.2f, -8.0f);
+	glScalef(1.5f, 1.2f, 1.5f);
+	glEnable(GL_TEXTURE_2D);
+	use_texture(3); // Use your texture ID
+	glColor3f(1.0f, 1.0f, 1.0f);
+
+	glBegin(GL_QUADS);
+	// Bottom face
+	glTexCoord2f(0, 0); glVertex3f(-1.0f, -1.0f, 1.0f);
+	glTexCoord2f(1, 0); glVertex3f(1.0f, -1.0f, 1.0f);
+	glTexCoord2f(1, 1); glVertex3f(1.0f, -1.0f, -1.0f);
+	glTexCoord2f(0, 1); glVertex3f(-1.0f, -1.0f, -1.0f);
+
+	// Side 1
+	glTexCoord2f(0, 0); glVertex3f(-1.0f, -1.0f, 1.0f);
+	glTexCoord2f(1, 0); glVertex3f(1.0f, -1.0f, 1.0f);
+	glTexCoord2f(1, 1); glVertex3f(0.5f, 1.0f, 0.5f);
+	glTexCoord2f(0, 1); glVertex3f(-0.5f, 1.0f, 0.5f);
+
+	// Side 2
+	glTexCoord2f(0, 0); glVertex3f(1.0f, -1.0f, 1.0f);
+	glTexCoord2f(1, 0); glVertex3f(1.0f, -1.0f, -1.0f);
+	glTexCoord2f(1, 1); glVertex3f(0.5f, 1.0f, -0.5f);
+	glTexCoord2f(0, 1); glVertex3f(0.5f, 1.0f, 0.5f);
+
+	// Side 3
+	glTexCoord2f(0, 0); glVertex3f(1.0f, -1.0f, -1.0f);
+	glTexCoord2f(1, 0); glVertex3f(-1.0f, -1.0f, -1.0f);
+	glTexCoord2f(1, 1); glVertex3f(-0.5f, 1.0f, -0.5f);
+	glTexCoord2f(0, 1); glVertex3f(0.5f, 1.0f, -0.5f);
+
+	// Side 4
+	glTexCoord2f(0, 0); glVertex3f(-1.0f, -1.0f, -1.0f);
+	glTexCoord2f(1, 0); glVertex3f(-1.0f, -1.0f, 1.0f);
+	glTexCoord2f(1, 1); glVertex3f(-0.5f, 1.0f, 0.5f);
+	glTexCoord2f(0, 1); glVertex3f(-0.5f, 1.0f, -0.5f);
+
+	// Top face
+	glTexCoord2f(0, 0); glVertex3f(-0.5f, 1.0f, 0.5f);
+	glTexCoord2f(1, 0); glVertex3f(0.5f, 1.0f, 0.5f);
+	glTexCoord2f(1, 1); glVertex3f(0.5f, 1.0f, -0.5f);
+	glTexCoord2f(0, 1); glVertex3f(-0.5f, 1.0f, -0.5f);
+	glEnd();
+
+	glDisable(GL_TEXTURE_2D);
+	glPopMatrix();
+	glPopMatrix();
+}
+
+
+// coffin
+void drawCoffin() {
+	glPushMatrix();
+
+	glEnable(GL_TEXTURE_2D);
+
+	float th = 0.06, sg = 0.02, sg2 = 0.01;
+	float vx[] = { 0, 2.05, 2.05, 0, -2.05, -2.05 };
+	float vz[] = { 1.02, 0.52, -0.52, -1.02, -0.52, 0.52 };
+
+	// Bottom (untextured)
+	glTranslatef(-13.5, -1.9, -6);
+	glScalef(6, 6, 6);
+	glRotatef(270, 0, 1, 0);
+	glColor3f(0.3, 0.15f, 0.05);
+	glBegin(GL_POLYGON);
+	for (int i = 0; i < 6; i++)
+		glVertex3f(vx[i], th, vz[i]);
+	glEnd();
+
+	glColor3f(0.3, 0.15f, 0.05);
+	glBegin(GL_POLYGON);
+	for (int i = 0; i < 6; i++)
+		glVertex3f(vx[i], 0, vz[i]);
+	glEnd();
+
+	for (int i = 0; i < 6; ++i) {
+		int next = (i + 1) % 6;
+
+		glColor3f(0.3, 0.15f, 0.05);
+		glBegin(GL_QUADS);
+		glVertex3f(vx[i], 0, vz[i]);
+		glVertex3f(vx[next], 0, vz[next]);
+		glVertex3f(vx[next], th, vz[next]);
+		glVertex3f(vx[i], th, vz[i]);
+		glEnd();
+	}
+
+	float vx2[] = { 0, 2, 2, 0, -2, -2 };
+	float vz2[] = { 1, 0.5, -0.5, -1, -0.5, 0.5 };
+
+	// Sides with texture
+	use_texture(8);
+	for (int i = 0; i < 6; ++i) {
+		int next = (i + 1) % 6;
+
+		glColor3f(1, 1, 1); // Texture color
+		glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 0.0f);
+		glVertex3f(vx2[i], th, vz2[i]);
+		glTexCoord2f(1.0f, 0.0f);
+		glVertex3f(vx2[next], th, vz2[next]);
+		glTexCoord2f(1.0f, 1.0f);
+		glVertex3f(vx2[next], 0.75, vz2[next]);
+		glTexCoord2f(0.0f, 1.0f);
+		glVertex3f(vx2[i], 0.75, vz2[i]);
+		glEnd();
+
+		// Optional black border lines
+		glDisable(GL_TEXTURE_2D);
+		glColor3f(0, 0, 0);
+		glLineWidth(5);
+		glBegin(GL_LINES);
+		glVertex3f(vx2[i], th, vz2[i]);
+		glVertex3f(vx2[i], 0.75, vz2[i]);
+		glVertex3f(vx2[i], 0.75, vz2[i]);
+		glVertex3f(vx2[next], 0.75, vz2[next]);
+		glEnd();
+		glEnable(GL_TEXTURE_2D);
+	}
+
+	glDisable(GL_TEXTURE_2D);
+
+	drawModel(skeletonVertices, skeletonTexCoords,
+		1.5f, 0.4f, 0.0f,       // tx, ty, tz (centered)
+		1.4f, 1.4f, 1.4f,       // scale down to fit
+		90.0f, 1.0f, // rotate model to lie flat
+		9, 1, 0);
+	glPopMatrix();
+
+	drawModel(skeletonVertices, skeletonTexCoords,
+		gh_x, 4, gh_z,       // tx, ty, tz (centered)
+		6, 6, 6,       // scale down to fit
+		0, 0, // rotate model to lie flat
+		9, 0.1, 1);
+}
+
+
+// fan
 void drawFan() {
 	glEnable(GL_TEXTURE_2D);
 
@@ -1008,307 +1321,8 @@ void drawFan() {
 	glDisable(GL_TEXTURE_2D);
 }
 
-void drawCube(float width, float height, float depth) {
-	float w = width / 2, h = height / 2, d = depth / 2;
-	glBegin(GL_QUADS);
 
-	// Front
-	glTexCoord2f(0, 0); glVertex3f(-w, -h, d);
-	glTexCoord2f(1, 0); glVertex3f(w, -h, d);
-	glTexCoord2f(1, 1); glVertex3f(w, h, d);
-	glTexCoord2f(0, 1); glVertex3f(-w, h, d);
-
-	// Back
-	glTexCoord2f(0, 0); glVertex3f(w, -h, -d);
-	glTexCoord2f(1, 0); glVertex3f(-w, -h, -d);
-	glTexCoord2f(1, 1); glVertex3f(-w, h, -d);
-	glTexCoord2f(0, 1); glVertex3f(w, h, -d);
-
-	// Left
-	glTexCoord2f(0, 0); glVertex3f(-w, -h, -d);
-	glTexCoord2f(1, 0); glVertex3f(-w, -h, d);
-	glTexCoord2f(1, 1); glVertex3f(-w, h, d);
-	glTexCoord2f(0, 1); glVertex3f(-w, h, -d);
-
-	// Right
-	glTexCoord2f(0, 0); glVertex3f(w, -h, d);
-	glTexCoord2f(1, 0); glVertex3f(w, -h, -d);
-	glTexCoord2f(1, 1); glVertex3f(w, h, -d);
-	glTexCoord2f(0, 1); glVertex3f(w, h, d);
-
-	// Top
-	glTexCoord2f(0, 0); glVertex3f(-w, h, d);
-	glTexCoord2f(1, 0); glVertex3f(w, h, d);
-	glTexCoord2f(1, 1); glVertex3f(w, h, -d);
-	glTexCoord2f(0, 1); glVertex3f(-w, h, -d);
-
-	// Bottom
-	glTexCoord2f(0, 0); glVertex3f(-w, -h, -d);
-	glTexCoord2f(1, 0); glVertex3f(w, -h, -d);
-	glTexCoord2f(1, 1); glVertex3f(w, -h, d);
-	glTexCoord2f(0, 1); glVertex3f(-w, -h, d);
-
-	glEnd();
-}
-
-// Draw table leg
-void drawTableLeg(float x, float z) {
-	glPushMatrix();
-	glTranslatef(x, TABLE_TOP_THICKNESS, z);
-	drawCube(TABLE_LEG_WIDTH, TABLE_LEG_HEIGHT, TABLE_LEG_WIDTH);
-	glPopMatrix();
-}
-
-// Draw the table
-void drawTable2() {
-	glPushMatrix();
-	glTranslatef(tableX, tableY, tableZ);
-
-	// Draw table top
-	glEnable(GL_TEXTURE_2D);
-	use_texture(6);
-	glPushMatrix();
-	glTranslatef(0.0f, TABLE_LEG_HEIGHT - 2, 0.0f);
-	drawCube(TABLE_TOP_WIDTH, TABLE_TOP_THICKNESS, TABLE_TOP_LENGTH);
-	glPopMatrix();
-
-	// Draw four legs
-	float legOffsetX = TABLE_TOP_WIDTH / 2 - TABLE_LEG_WIDTH / 2;
-	float legOffsetZ = TABLE_TOP_LENGTH / 2 - TABLE_LEG_WIDTH / 2;
-
-	drawTableLeg(-legOffsetX, -legOffsetZ);  // Back-left
-	drawTableLeg(-legOffsetX, legOffsetZ);   // Front-left
-	drawTableLeg(legOffsetX, -legOffsetZ);  // Back-right
-	drawTableLeg(legOffsetX, legOffsetZ);   // Front-right
-	glDisable(GL_TEXTURE_2D);
-	glPopMatrix();
-
-	drawModel(skullVertices, skullTexCoords,
-		10.0f, TABLE_LEG_HEIGHT - 1.6f + TABLE_TOP_THICKNESS / 1.0f, -0.9f, // tx, ty, tz
-		0.09f, 0.09f, 0.09f,                                            // scale to fit
-		45.0f, 1.0f,                                        // rotate if needed
-		9, 1, 0);
-	drawModel(skullVertices, skullTexCoords,
-		12.0f, TABLE_LEG_HEIGHT - 1.6f + TABLE_TOP_THICKNESS / 1.0f, -0.9f, // tx, ty, tz
-		0.07f, 0.07f, 0.07f,                                            // scale to fit
-		-60.0f, 1.0f,                                        // rotate if needed
-		9, 1, 0);
-}
-
-void drawCard() {
-	float w = 0.64f, h = 0.9f, t = 0.05f;
-
-	glPushMatrix();
-	glEnable(GL_TEXTURE_2D);
-	use_texture(7);
-	glTranslatef(9.0f, 5.48f, 0.0f);
-	glRotatef(90, 1, 0, 0);
-	glRotatef(45, 0, 0, 1);
-	// Front face (textured)
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0, 0.0); glVertex3f(-w, -h, t);
-	glTexCoord2f(1.0, 0.0); glVertex3f(w, -h, t);
-	glTexCoord2f(1.0, 1.0); glVertex3f(w, h, t);
-	glTexCoord2f(0.0, 1.0); glVertex3f(-w, h, t);
-	glEnd();
-
-	// Back face (textured or plain)
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0, 0.0); glVertex3f(-w, -h, -t);
-	glTexCoord2f(1.0, 0.0); glVertex3f(w, -h, -t);
-	glTexCoord2f(1.0, 1.0); glVertex3f(w, h, -t);
-	glTexCoord2f(0.0, 1.0); glVertex3f(-w, h, -t);
-	glEnd();
-
-	glDisable(GL_TEXTURE_2D);
-	glColor3f(0.0f, 0.0f, 0.0f);
-	glDisable(GL_LIGHTING);
-	// Sides
-	glBegin(GL_QUADS);
-	// Top
-
-	glVertex3f(-w, h, t); glVertex3f(w, h, t);
-	glVertex3f(w, h, -t); glVertex3f(-w, h, -t);
-	// Bottom
-	glVertex3f(-w, -h, t); glVertex3f(-w, -h, -t);
-	glVertex3f(w, -h, -t); glVertex3f(w, -h, t);
-	// Right
-	glVertex3f(w, -h, t); glVertex3f(w, -h, -t);
-	glVertex3f(w, h, -t); glVertex3f(w, h, t);
-	// Left
-	glVertex3f(-w, -h, t); glVertex3f(-w, h, t);
-	glVertex3f(-w, h, -t); glVertex3f(-w, -h, -t);
-	glEnd();
-
-	glPopMatrix();
-}
-
-void drawCoffin() {
-	glPushMatrix();
-
-	glEnable(GL_TEXTURE_2D);
-
-	float th = 0.06, sg = 0.02, sg2 = 0.01;
-	float vx[] = { 0, 2.05, 2.05, 0, -2.05, -2.05 };
-	float vz[] = { 1.02, 0.52, -0.52, -1.02, -0.52, 0.52 };
-
-	// Bottom (untextured)
-	glTranslatef(-13.5, -1.9, -6);
-	glScalef(6, 6, 6);
-	glRotatef(270, 0, 1, 0);
-	glColor3f(0.3, 0.15f, 0.05);
-	glBegin(GL_POLYGON);
-	for (int i = 0; i < 6; i++)
-		glVertex3f(vx[i], th, vz[i]);
-	glEnd();
-
-	glColor3f(0.3, 0.15f, 0.05);
-	glBegin(GL_POLYGON);
-	for (int i = 0; i < 6; i++)
-		glVertex3f(vx[i], 0, vz[i]);
-	glEnd();
-
-	for (int i = 0; i < 6; ++i) {
-		int next = (i + 1) % 6;
-
-		glColor3f(0.3, 0.15f, 0.05);
-		glBegin(GL_QUADS);
-		glVertex3f(vx[i], 0, vz[i]);
-		glVertex3f(vx[next], 0, vz[next]);
-		glVertex3f(vx[next], th, vz[next]);
-		glVertex3f(vx[i], th, vz[i]);
-		glEnd();
-	}
-
-	float vx2[] = { 0, 2, 2, 0, -2, -2 };
-	float vz2[] = { 1, 0.5, -0.5, -1, -0.5, 0.5 };
-
-	// Sides with texture
-	use_texture(8);
-	for (int i = 0; i < 6; ++i) {
-		int next = (i + 1) % 6;
-
-		glColor3f(1, 1, 1); // Texture color
-		glBegin(GL_QUADS);
-		glTexCoord2f(0.0f, 0.0f);
-		glVertex3f(vx2[i], th, vz2[i]);
-		glTexCoord2f(1.0f, 0.0f);
-		glVertex3f(vx2[next], th, vz2[next]);
-		glTexCoord2f(1.0f, 1.0f);
-		glVertex3f(vx2[next], 0.75, vz2[next]);
-		glTexCoord2f(0.0f, 1.0f);
-		glVertex3f(vx2[i], 0.75, vz2[i]);
-		glEnd();
-
-		// Optional black border lines
-		glDisable(GL_TEXTURE_2D);
-		glColor3f(0, 0, 0);
-		glLineWidth(5);
-		glBegin(GL_LINES);
-		glVertex3f(vx2[i], th, vz2[i]);
-		glVertex3f(vx2[i], 0.75, vz2[i]);
-		glVertex3f(vx2[i], 0.75, vz2[i]);
-		glVertex3f(vx2[next], 0.75, vz2[next]);
-		glEnd();
-		glEnable(GL_TEXTURE_2D);
-	}
-
-	glDisable(GL_TEXTURE_2D);
-
-	drawModel(skeletonVertices, skeletonTexCoords,
-		1.5f, 0.4f, 0.0f,       // tx, ty, tz (centered)
-		1.4f, 1.4f, 1.4f,       // scale down to fit
-		90.0f, 1.0f, // rotate model to lie flat
-		9, 1, 0);
-	glPopMatrix();
-
-	drawModel(skeletonVertices, skeletonTexCoords,
-		gh_x, 4, gh_z,       // tx, ty, tz (centered)
-		6, 6, 6,       // scale down to fit
-		0, 0, // rotate model to lie flat
-		9, 0.1, 1);
-}
-
-
-// Load the OBJ model
-// Load OBJ model and extract vertices and texture coordinates
-void loadModel(const char* filename, vector<float>& vertices, vector<float>& texCoords) {
-	tinyobj::attrib_t attrib;
-	vector<tinyobj::shape_t> shapes;
-	vector<tinyobj::material_t> materials;
-	string warn, err;
-
-	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename);
-	if (!ret) {
-		cerr << "Error loading model: " << err << endl;
-		return;
-	}
-
-	if (!warn.empty()) {
-		cerr << "Warning: " << warn << endl;
-	}
-
-	vertices.clear();
-	texCoords.clear();
-
-	for (const auto& shape : shapes) {
-		for (const auto& index : shape.mesh.indices) {
-			// Vertex
-			vertices.push_back(attrib.vertices[3 * index.vertex_index + 0]);
-			vertices.push_back(attrib.vertices[3 * index.vertex_index + 1]);
-			vertices.push_back(attrib.vertices[3 * index.vertex_index + 2]);
-
-			// Texture
-			if (index.texcoord_index >= 0 && !attrib.texcoords.empty()) {
-				texCoords.push_back(attrib.texcoords[2 * index.texcoord_index + 0]);
-				texCoords.push_back(attrib.texcoords[2 * index.texcoord_index + 1]);
-			}
-			else {
-				texCoords.push_back(0.0f);
-				texCoords.push_back(0.0f);
-			}
-		}
-	}
-
-	cout << "Loaded " << vertices.size() / 3 << " vertices from " << filename << endl;
-}
-
-// Draw the 3D textured model with passed model data, positioned to the right of the table
-void drawModel(const vector<float>& vertices,
-	const vector<float>& texCoords,
-	float tx, float ty, float tz,
-	float sx, float sy, float sz,
-	float angle, float r,
-	int textureId, 
-	float transperancy,
-	int fl) {
-	glPushMatrix();
-
-	glEnable(GL_TEXTURE_2D);
-	use_texture(textureId);
-
-	glTranslatef(tx, ty, tz);
-	glRotatef(angle, 0, 0, r);
-	glRotatef(angle, 0, r, 0);
-	glRotatef(90, 0, fl, 0);
-	glScalef(sx, sy, sz);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glColor4f(1.0f, 1.0f, 1.0f, transperancy);
-	glBegin(GL_TRIANGLES);
-	for (size_t i = 0, j = 0; i < vertices.size(); i += 3, j += 2) {
-		glTexCoord2f(texCoords[j], texCoords[j + 1]);
-		glVertex3f(vertices[i], vertices[i + 1], vertices[i + 2]);
-	}
-	glEnd();
-
-	glDisable(GL_BLEND);
-	glDisable(GL_TEXTURE_2D);
-	glPopMatrix();
-}
-
-
+// clock
 void drawTriangleHand(float length, float baseWidth) {
 	glBegin(GL_TRIANGLES);
 	glVertex3f(0.0f, length, 0.01f);                   // Tip pointing outward
@@ -1316,7 +1330,6 @@ void drawTriangleHand(float length, float baseWidth) {
 	glVertex3f(baseWidth / 2.0f, 0.0f, 0.01f);         // Right base
 	glEnd();
 }
-
 void drawClockFace() {
 	const int segments = 100;
 	float radius = 1.0f;
@@ -1446,6 +1459,37 @@ void drawX(float x, float y, float z) {
 }
 
 
+// message
+bool isClick(int mouseX, int mouseY) {
+	GLdouble modelview[16], projection[16];
+	GLint viewport[4];
+	glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
+	glGetDoublev(GL_PROJECTION_MATRIX, projection);
+	glGetIntegerv(GL_VIEWPORT, viewport);
+
+	GLdouble x1, y1, z1, x2, y2, z2;
+
+	gluUnProject(mouseX, viewport[3] - mouseY, 0.0, modelview, projection, viewport, &x1, &y1, &z1); // near
+	gluUnProject(mouseX, viewport[3] - mouseY, 1.0, modelview, projection, viewport, &x2, &y2, &z2); // far
+
+
+	// Ray: from (x1, y1, z1) to (x2, y2, z2)
+	// Perform intersection test with your objects
+
+	float Z0 = -19.6, xmin = -2, xmax = 2, ymin = 8, ymax = 12;
+	float dz = z2 - z1;
+	if (dz == 0.0f) return false; // Ray is parallel to the plane
+
+	float t = (Z0 - z1) / dz;
+
+	if (t < 0.0f || t > 1.0f) return false; // Intersection is outside ray segment
+
+	float x = x1 + t * (x2 - x1);
+	float y = y1 + t * (y2 - y1);
+	//cout << centerX << ' ' << centerZ << '\n';
+
+	return (x >= xmin && x <= xmax && y >= ymin && y <= ymax);
+}
 void drawSafeBox() {
 	float s = 0.5f;
 	glPushMatrix();
@@ -1499,10 +1543,80 @@ void drawSafeBox() {
 
 	glPopMatrix();
 }
+void draw2DMessageBox(const char* title) {
+	// Save current matrix modes
+	glPushMatrix();
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluOrtho2D(0, 1920, 0, 1080);
 
-float painting_rot_z = 0;
-bool painting_moved = 0;
-void drawPainring() {
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_LIGHTING);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// Draw the box
+	float x = 480, y = 360, width = 960, height = 360; // center box
+	glColor4f(0.6f, 0.6f, 0.6f, 0.9f);
+	glBegin(GL_QUADS);
+	glVertex2f(x, y);
+	glVertex2f(x + width, y);
+	glVertex2f(x + width, y + height);
+	glVertex2f(x, y + height);
+	glEnd();
+
+	glColor4f(1, 1, 1, 0.6);
+	glBegin(GL_QUADS);
+	glVertex2f(x + 30, y + height - 30);
+	glVertex2f(x + width - 30, y + height - 30);
+	glVertex2f(x + width - 30, y + height - 100);
+	glVertex2f(x + 30, y + height - 100);
+	glEnd();
+
+	// Draw border
+	glColor3f(1.0f, 1.0f, 1.0f);
+	glLineWidth(3);
+	glBegin(GL_LINE_LOOP);
+	glVertex2f(x, y);
+	glVertex2f(x + width, y);
+	glVertex2f(x + width, y + height);
+	glVertex2f(x, y + height);
+	glEnd();
+
+	// Draw the title and message
+	glPushMatrix();
+	glColor3f(1, 0.2f, 0.2f);
+	glRasterPos2f(x + 360, y + height - 160);
+	for (const char* c = title; *c; c++)
+		glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, *c);
+	glPopMatrix();
+
+	glColor3f(0, 0, 0);
+	glRasterPos2f(x + 100, y + height - 70);
+	for (auto c : pass)
+		glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, c);
+
+	// Restore state
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_LIGHTING);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+
+	glMatrixMode(GL_MODELVIEW); // reset mode to modelview
+}
+
+
+// Frames
+void drawPainting() {
 	float x = 0.964 / 2, y = 0.6, z = 0.5;
 	glPushMatrix();
 	glEnable(GL_TEXTURE_2D);
@@ -1559,202 +1673,6 @@ void drawPainring() {
 
 	glPopMatrix();
 }
-
-bool isClick(int mouseX, int mouseY) {
-	GLdouble modelview[16], projection[16];
-	GLint viewport[4];
-	glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
-	glGetDoublev(GL_PROJECTION_MATRIX, projection);
-	glGetIntegerv(GL_VIEWPORT, viewport);
-
-	GLdouble x1, y1, z1, x2, y2, z2;
-
-	gluUnProject(mouseX, viewport[3] - mouseY, 0.0, modelview, projection, viewport, &x1, &y1, &z1); // near
-	gluUnProject(mouseX, viewport[3] - mouseY, 1.0, modelview, projection, viewport, &x2, &y2, &z2); // far
-
-
-	// Ray: from (x1, y1, z1) to (x2, y2, z2)
-	// Perform intersection test with your objects
-
-	float Z0 = -19.6, xmin = -2, xmax = 2, ymin = 8, ymax = 12;
-	float dz = z2 - z1;
-	if (dz == 0.0f) return false; // Ray is parallel to the plane
-
-	float t = (Z0 - z1) / dz;
-
-	if (t < 0.0f || t > 1.0f) return false; // Intersection is outside ray segment
-
-	float x = x1 + t * (x2 - x1);
-	float y = y1 + t * (y2 - y1);
-	cout << centerX << ' ' << centerZ << '\n';
-
-	return (x >= xmin && x <= xmax && y >= ymin && y <= ymax);
-}
-void mouseClick(int button, int state, int x, int y) {
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		if (!painting_moved){
-			if (isClick(x, y)) {
-				painting_rot_z = 1;
-				painting_moved = 1;
-				cout << "Pic was clicked!\n";
-			}
-		}
-		else {
-			if (isClick(x, y)) {
-				cout << "Box was clicked!\n";
-				isShowBox = 1;
-			}
-		}
-	}
-}
-
-void draw2DMessageBox(const char* title) {
-	// Save current matrix modes
-	glPushMatrix();
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluOrtho2D(0, 1920, 0, 1080);
-
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_LIGHTING);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	// Draw the box
-	float x = 480, y = 360, width = 960, height = 360; // center box
-	glColor4f(0.6f, 0.6f, 0.6f, 0.9f);
-	glBegin(GL_QUADS);
-	glVertex2f(x, y);
-	glVertex2f(x + width, y);
-	glVertex2f(x + width, y + height);
-	glVertex2f(x, y + height);
-	glEnd();
-
-	glColor4f(1, 1, 1, 0.6);
-	glBegin(GL_QUADS);
-	glVertex2f(x + 30, y + height - 30);
-	glVertex2f(x + width - 30, y + height - 30);
-	glVertex2f(x + width - 30, y + height - 100);
-	glVertex2f(x + 30, y + height - 100);
-	glEnd();
-
-	// Draw border
-	glColor3f(1.0f, 1.0f, 1.0f);
-	glLineWidth(3);
-	glBegin(GL_LINE_LOOP);
-	glVertex2f(x, y);
-	glVertex2f(x + width, y);
-	glVertex2f(x + width, y + height);
-	glVertex2f(x, y + height);
-	glEnd();
-
-	// Draw the title and message
-	glPushMatrix();
-	glColor3f(1, 0.2f, 0.2f);
-	glRasterPos2f(x + 360, y + height - 160);
-	for (const char* c = title; *c; c++) 
-		glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, *c);
-	glPopMatrix();
-
-	glColor3f(0, 0, 0);
-	glRasterPos2f(x + 100, y + height - 70);
-	for (auto c : pass) 
-		glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, c);
-
-	// Restore state
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_LIGHTING);
-
-	glMatrixMode(GL_MODELVIEW);
-	glPopMatrix();
-
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-
-	glMatrixMode(GL_MODELVIEW); // reset mode to modelview
-}
-
-void drawLamp() {
-	const float shiftX = -2.0f;  // Shift lamp 2 units to the left
-
-	glPushMatrix();
-	glTranslatef(-6, 0, 15);
-	glRotatef(90, 0, 1, 0);
-
-	// === Lamp Base ===
-	glPushMatrix();
-	glTranslatef(shiftX, 1.0f, -8.0f);
-	glScalef(1.0f, 0.2f, 1.0f);
-	glColor3f(0.5f, 0.3f, 0.2f);
-	glDisable(GL_TEXTURE_2D);
-	glutSolidCube(1.0f);
-	glPopMatrix();
-
-	// === Lamp Stand ===
-	glPushMatrix();
-	glTranslatef(shiftX, 1.9f, -8.0f);
-	glScalef(0.5f, 1.8f, 0.1f);
-	glColor3f(1.0f, 0.0f, 0.0f);
-	glDisable(GL_TEXTURE_2D);
-	glutSolidCube(1.0f);
-	glPopMatrix();
-
-	// === Lamp Shade (Textured) ===
-	glPushMatrix();
-	glTranslatef(shiftX, 3.2f, -8.0f);
-	glScalef(1.5f, 1.2f, 1.5f);
-	glEnable(GL_TEXTURE_2D);
-	use_texture(3); // Use your texture ID
-	glColor3f(1.0f, 1.0f, 1.0f);
-
-	glBegin(GL_QUADS);
-	// Bottom face
-	glTexCoord2f(0, 0); glVertex3f(-1.0f, -1.0f, 1.0f);
-	glTexCoord2f(1, 0); glVertex3f(1.0f, -1.0f, 1.0f);
-	glTexCoord2f(1, 1); glVertex3f(1.0f, -1.0f, -1.0f);
-	glTexCoord2f(0, 1); glVertex3f(-1.0f, -1.0f, -1.0f);
-
-	// Side 1
-	glTexCoord2f(0, 0); glVertex3f(-1.0f, -1.0f, 1.0f);
-	glTexCoord2f(1, 0); glVertex3f(1.0f, -1.0f, 1.0f);
-	glTexCoord2f(1, 1); glVertex3f(0.5f, 1.0f, 0.5f);
-	glTexCoord2f(0, 1); glVertex3f(-0.5f, 1.0f, 0.5f);
-
-	// Side 2
-	glTexCoord2f(0, 0); glVertex3f(1.0f, -1.0f, 1.0f);
-	glTexCoord2f(1, 0); glVertex3f(1.0f, -1.0f, -1.0f);
-	glTexCoord2f(1, 1); glVertex3f(0.5f, 1.0f, -0.5f);
-	glTexCoord2f(0, 1); glVertex3f(0.5f, 1.0f, 0.5f);
-
-	// Side 3
-	glTexCoord2f(0, 0); glVertex3f(1.0f, -1.0f, -1.0f);
-	glTexCoord2f(1, 0); glVertex3f(-1.0f, -1.0f, -1.0f);
-	glTexCoord2f(1, 1); glVertex3f(-0.5f, 1.0f, -0.5f);
-	glTexCoord2f(0, 1); glVertex3f(0.5f, 1.0f, -0.5f);
-
-	// Side 4
-	glTexCoord2f(0, 0); glVertex3f(-1.0f, -1.0f, -1.0f);
-	glTexCoord2f(1, 0); glVertex3f(-1.0f, -1.0f, 1.0f);
-	glTexCoord2f(1, 1); glVertex3f(-0.5f, 1.0f, 0.5f);
-	glTexCoord2f(0, 1); glVertex3f(-0.5f, 1.0f, -0.5f);
-
-	// Top face
-	glTexCoord2f(0, 0); glVertex3f(-0.5f, 1.0f, 0.5f);
-	glTexCoord2f(1, 0); glVertex3f(0.5f, 1.0f, 0.5f);
-	glTexCoord2f(1, 1); glVertex3f(0.5f, 1.0f, -0.5f);
-	glTexCoord2f(0, 1); glVertex3f(-0.5f, 1.0f, -0.5f);
-	glEnd();
-
-	glDisable(GL_TEXTURE_2D);
-	glPopMatrix();
-	glPopMatrix();
-}
-
 void drawFrame(int textureID, float x, float y, float z) {
 	glEnable(GL_TEXTURE_2D);
 	use_texture(textureID);
@@ -1778,6 +1696,8 @@ void drawFrame(int textureID, float x, float y, float z) {
 	glDisable(GL_TEXTURE_2D);
 }
 
+
+// Corridor
 void finalCorridor_pt1() {
 	glPushMatrix();
 	glEnable(GL_LIGHTING);
